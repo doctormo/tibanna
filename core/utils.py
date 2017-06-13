@@ -66,15 +66,21 @@ class s3Utils(object):
     def get_s3_keys(self):
         return self.get_key('sbgs3key')
 
-    def read_s3(self, filename, bucket='outfile_bucket'):
-        response = s3.get_object(Bucket=self.bucket,
+    def get_bucket(self, bucket=None):
+        if not bucket or bucket == 'outfile_bucket':
+            return self.outfile_bucket
+        elif bucket == 'file_bucket':
+            return self.file_bucket
+
+    def read_s3(self, filename, bucket=None):
+        response = s3.get_object(Bucket=self.get_bucket(bucket),
                                  Key=filename)
         LOG.info(str(response))
         return response['Body'].read()
 
-    def does_key_exist(self, key, bucket='outfile_bucket'):
+    def does_key_exist(self, key, bucket=None):
         try:
-            s3.head_object(Bucket=self.bucket,
+            s3.head_object(Bucket=self.get_bucket(bucket),
                            Key=key)
         except Exception as e:
             print(str(e))
@@ -103,8 +109,8 @@ class s3Utils(object):
                           ContentType=content_type
                           )
 
-    def s3_read_dir(self, prefix, bucket='outfile_bucket'):
-        return s3.list_objects(Bucket=self.bucket,
+    def s3_read_dir(self, prefix, bucket=None):
+        return s3.list_objects(Bucket=self.get_bucket(bucket),
                                Prefix=prefix)
 
     def s3_delete_dir(self, prefix):
