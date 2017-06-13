@@ -28,17 +28,19 @@ def ensure_list(val):
 
 class s3Utils(object):
 
-    def __init__(self, outfile_bucket=None, sys_bucket=None, env=None):
+    def __init__(self, outfile_bucket=None, sys_bucket=None, file_bucket=None, env=None):
         '''
-        if we pass in env set the outfile and sys bucket from the environment
+        if we pass in env set the file, outfile and sys bucket from the environment
         '''
-        if sys_bucket is None:
+        if env is not None:
             # we use standardized naming schema, so s3 buckets always have same prefix
             sys_bucket = "elasticbeanstalk-%s-system" % env
             outfile_bucket = "elasticbeanstalk-%s-wfoutput" % env
+            file_bucket = "elasticbeanstalk-%s-files" % env
 
         self.sys_bucket = sys_bucket
         self.outfile_bucket = outfile_bucket
+        self.file_bucket = file_bucket
 
     def get_access_keys(self):
         name = 'illnevertell'
@@ -64,15 +66,15 @@ class s3Utils(object):
     def get_s3_keys(self):
         return self.get_key('sbgs3key')
 
-    def read_s3(self, filename):
-        response = s3.get_object(Bucket=self.outfile_bucket,
+    def read_s3(self, filename, bucket='outfile_bucket'):
+        response = s3.get_object(Bucket=self.bucket,
                                  Key=filename)
         LOG.info(str(response))
         return response['Body'].read()
 
-    def does_key_exist(self, key):
+    def does_key_exist(self, key, bucket='outfile_bucket'):
         try:
-            s3.head_object(Bucket=self.outfile_bucket,
+            s3.head_object(Bucket=self.bucket,
                            Key=key)
         except Exception as e:
             print(str(e))
@@ -101,8 +103,8 @@ class s3Utils(object):
                           ContentType=content_type
                           )
 
-    def s3_read_dir(self, prefix):
-        return s3.list_objects(Bucket=self.outfile_bucket,
+    def s3_read_dir(self, prefix, bucket='outfile_bucket'):
+        return s3.list_objects(Bucket=self.bucket,
                                Prefix=prefix)
 
     def s3_delete_dir(self, prefix):
