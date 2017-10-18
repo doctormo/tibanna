@@ -367,3 +367,16 @@ def current_env():
 
 def is_prod():
     return current_env().lower() == 'prod'
+
+
+def powerup(function):
+    import logging
+    logging.basicConfig()
+    logger = logging.getLogger('logger')
+
+    def wrapper(event, context):
+        logger.info(context)
+        logger.info(event)
+        return function(event, context)
+
+    return wrapper

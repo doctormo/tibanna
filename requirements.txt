@@ -9,3 +9,4 @@ invoke==0.18.1
 
 # Syntax checking
 flake8==2.4.1
+requests
