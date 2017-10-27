@@ -55,8 +55,13 @@ def get_all_core_lambdas():
             'run_task_awsf',
             'check_task_awsf',
             'update_ffmeta_awsf',
+            'travis_deploy_prod',
             'travis_deploy',
-            'travis_deploy_prod'
+            'create_es',
+            'create_beanstalk',
+            'waitfor',
+            'snapshot_rds',
+            'create_rds',
             ]
 
 
@@ -206,6 +211,15 @@ def deploy_core(ctx, name, version=None, no_tests=False):
     if name == 'all':
         names = get_all_core_lambdas()
         print(names)
+    elif name == 'devops':
+        names = [
+            'travis_deploy',
+            'create_es',
+            'create_beanstalk',
+            'waitfor',
+            'snapshot_rds',
+            'create_rds',
+        ]
     else:
         names = [name, ]
 
@@ -234,7 +248,19 @@ def deploy_core(ctx, name, version=None, no_tests=False):
 
 @task
 def deploy_lambda_package(ctx, name):
-    aws_lambda.deploy(os.getcwd(), local_package='../..', requirements='../../requirements.txt')
+    # third part tools, should all be tar
+    '''
+    tools_dir = os.path.join(ROOT_DIR, "third_party")
+    bin_dir = os.path.join(ROOT_DIR, "bin")
+
+    for filename in os.listdir(tools_dir):
+        if filename.endswith('.tar'):
+            fullpath = os.path.join(tools_dir, filename)
+            run("tar -xvf %s -C %s" % (fullpath, bin_dir))
+    '''
+
+    aws_lambda.deploy(os.getcwd(), local_package='../..', raw_copy='../../bin',
+                      requirements='../../requirements.txt')
 
 
 @task
@@ -482,8 +508,6 @@ _workflows = {'md5':
 
 def calc_ebs_size(bucket, key):
     s3 = s3Utils(bucket, bucket, bucket)
-    import pdb
-    pdb.set_trace()
     size = s3.get_file_size(key, bucket, add_gb=3, size_in_gb=True)
     if size < 10:
         size = 10

@@ -20,6 +20,10 @@ from botocore.exceptions import ClientError
 from time import sleep
 
 
+class WaitingForBoto3(Exception):
+    pass
+
+
 def delete_db(db_identifier, take_snapshot=True):
     client = boto3.client('rds')
     if take_snapshot:
@@ -40,24 +44,35 @@ def delete_db(db_identifier, take_snapshot=True):
             DBInstanceIdentifier=db_identifier,
             SkipFinalSnapshot=True,
         )
-
-
     print(resp)
+
+
+def is_beanstalk_ready(env):
+    client = boto3.client('elasticbeanstalk')
+    res = client.describe_environments(EnvironmentNames=[env])
+
+    status = res['Environments'][0]['Status']
+    if status != 'Ready':
+        raise WaitingForBoto3("Beanstalk enviornment status is %s" % status)
+
+    return status, res['Environments'][0].get('EndpointURL') 
 
 
 def is_snapshot_ready(snapshot_name):
     client = boto3.client('rds')
     resp = client.describe_db_snapshots(DBSnapshotIdentifier=snapshot_name)
     status = resp['DBSnapshots'][0]['Status']
-    return status.lower() == 'available', status
+    return status.lower() == 'available', resp['DBSnapshots'][0]['DBSnapshotIdentifier']
 
 
-def is_db_delete_done(snapshot_name):
-    return True, True
-
-
-def is_es_ready(snapshot_name):
-    return True, True
+def is_es_ready(es_name):
+    es = boto3.client('es')
+    describe_resp = es.describe_elasticsearch_domain(DomainName=es_name)
+    endpoint = describe_resp['DomainStatus'].get('Endpoint', None)
+    status = True
+    if endpoint is None:
+        status = False
+    return status, endpoint
 
 
 def is_db_ready(snapshot_name):
@@ -82,19 +97,31 @@ def create_db_snapshot(db_identifier, snapshot_name):
              DBInstanceIdentifier=db_identifier)
     except ClientError:
         # probably the guy already exists
-        # sometimes it takes a while to delete one
-        for attempt in [20, 40, 60]:
-            try:
-                client.delete_db_snapshot(DBSnapshotIdentifier=snapshot_name)
-            except ClientError:
-                sleep(attempt)
-            else:
-                break
-        response = client.create_db_snapshot(
-             DBSnapshotIdentifier=snapshot_name,
-             DBInstanceIdentifier=db_identifier)
+        try:
+            client.delete_db_snapshot(DBSnapshotIdentifier=snapshot_name)
+        except ClientError:
+            pass
+        return "Deleting"
 
-        return response
+    return response
+
+
+def create_db_from_snapshot(snapshot_name):
+    client = boto3.client('rds')
+    try:
+        response = client.restore_db_instance_from_db_snapshot(
+                DBInstanceIdentifier=snapshot_name,
+                DBSnapshotIdentifier=snapshot_name,
+                DBInstanceClass='db.t2.medium')
+    except ClientError:
+        # drop target database no backup
+        try:
+            delete_db(snapshot_name, False)
+        except ClientError:
+            pass
+        return "Deleting"
+
+    return response['DBInstance']['DBInstanceArn']
 
 
 def snapshot_db(db_identifier, snapshot_name):
@@ -139,11 +166,42 @@ def snapshot_db(db_identifier, snapshot_name):
         sleep(10)
 
 
+def make_envvar_option(name, value):
+    return {'Namespace': 'aws:elasticbeanstalk:application:environment',
+            'OptionName': name,
+            'Value': value
+            }
+
+
+def create_bs(envname, load_prod, db_endpoint, es_url):
+    client = boto3.client('elasticbeanstalk')
+
+    load_value = 'load_test_data'
+    if load_prod:
+        load_value = 'load_prod_data'
+    options = [make_envvar_option('RDS_HOSTNAME', db_endpoint),
+               make_envvar_option('ENV_NAME', envname),
+               make_envvar_option('ES_URL', es_url),
+               make_envvar_option('LOAD_FUNCTION', load_value)
+               ]
+    try:
+        res = client.create_environment(ApplicationName='4dn-web',
+                                        EnvironmentName=envname,
+                                        TemplateName='fourfront-base',
+                                        OptionSettings=options,
+                                        )
+    except ClientError:
+        # already exists, just retun envmane
+        return envname
+
+    return res
+
+
 def clone_bs_env(old, new, load_prod, db_endpoint, es_url):
     env = 'RDS_HOSTNAME=%s,ENV_NAME=%s,ES_URL=%s' % (db_endpoint, new, es_url)
     if load_prod is True:
         env += ",LOAD_FUNCTION=load_prod_data"
-    subprocess.check_call(['eb', 'clone', old, '-n', new,
+    subprocess.check_call(['./eb', 'clone', old, '-n', new,
                            '--envvars', env,
                            '--exact', '--nohang'])
 
@@ -254,39 +312,43 @@ def sizeup_es(new):
 
 def add_es(new):
     es = boto3.client('es')
-    resp = es.create_elasticsearch_domain(
-        DomainName=new,
-        ElasticsearchVersion='5.3',
-        ElasticsearchClusterConfig={
-            'InstanceType': 'm3.large.elasticsearch',
-            'InstanceCount': 3,
-            'DedicatedMasterEnabled': False,
-        },
-        AccessPolicies=json.dumps({
-            "Version": "2012-10-17",
-            "Statement": [
-                {
-                    "Effect": "Allow",
-                    "Principal": {
-                        "AWS": "*"
-                    },
-                    "Action": [
-                        "es:*"
-                    ],
-                    "Condition": {
-                        "IpAddress": {
-                            "aws:SourceIp": [
-                                "0.0.0.0/0",
-                                "134.174.140.197/32",
-                                "134.174.140.208/32",
-                                "172.31.16.84/32"
-                            ]
-                        }
-                    },
-                }
-            ]
-        })
-    )
+    try:
+        resp = es.describe_elasticsearch_domain(DomainName=new)
+    except ClientError: # its not there
+        resp = es.create_elasticsearch_domain(
+            DomainName=new,
+            ElasticsearchVersion='5.3',
+            ElasticsearchClusterConfig={
+                'InstanceType': 'm3.large.elasticsearch',
+                'InstanceCount': 3,
+                'DedicatedMasterEnabled': False,
+            },
+            AccessPolicies=json.dumps({
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Principal": {
+                            "AWS": "*"
+                        },
+                        "Action": [
+                            "es:*"
+                        ],
+                        "Condition": {
+                            "IpAddress": {
+                                "aws:SourceIp": [
+                                    "0.0.0.0/0",
+                                    "134.174.140.197/32",
+                                    "134.174.140.208/32",
+                                    "172.31.16.84/32",
+                                    "172.31.73.1/24"
+                                ]
+                            }
+                        },
+                    }
+                ]
+            })
+        )
     print(resp)
     return resp['DomainStatus']['ARN']
 

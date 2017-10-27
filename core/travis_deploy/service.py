@@ -3,7 +3,7 @@ import requests
 import os
 import logging
 import json
-
+from core.utils import powerup
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -14,11 +14,17 @@ def get_default(data, key):
     return data.get(key, os.environ.get(key, None))
 
 
+@powerup('travis_deploy')
 def handler(event, context):
-    # get data
-    branch = get_default(event, 'branch')
+    # setup path to run git
+    merge_into = get_default(event, 'merge_into')
     repo_owner = get_default(event, 'repo_owner')
     repo_name = get_default(event, 'repo_name')
+    branch = get_default(event, 'branch')
+    dest_env = get_default(event, 'dest_env')
+
+    if not dest_env:
+        dest_env = 'fourfront-webdev'
     dry_run = get_default(event, 'dry_run')
     print("trigger build for %s/%s on branch %s" % (repo_owner, repo_name, branch))
     if dry_run:
@@ -31,7 +37,7 @@ def handler(event, context):
                 "message": "Your Tibanna triggered build has started.  Have a nice day! :)",
                 "branch": branch,
                 "config": {
-                    "before_install": ["export tibanna_deploy=fourfront-webdev",
+                    "before_install": ["export tibanna_deploy=%s" % (dest_env),
                                        "echo $tibanna_deploy",
                                        "postgres --version",
                                        "initdb --version",
@@ -42,6 +48,12 @@ def handler(event, context):
                     }
                 }
             }
+
+    # if merge into, merge branch into merge_into branch and deploy merge_into branch
+    if merge_into:
+        logger.info("setting env for tibanna_merge to %s" % merge_into)
+        body['request']['config']['before_install'].append('export tibanna_merge=%s' % (merge_into))
+        body['request']['config']['before_install'].append('echo $tibanna_merge')
 
     headers = {'Content-Type': 'application/json',
                'Accept': 'application/json',
@@ -60,3 +72,5 @@ def handler(event, context):
         logger.info(resp.json())
     except:
         pass
+
+    return resp

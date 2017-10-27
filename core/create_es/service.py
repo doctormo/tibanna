@@ -2,6 +2,7 @@
 import os
 import logging
 import core.beanstalk_utils as bs
+from core.utils import powerup
 
 
 logging.basicConfig()
@@ -13,14 +14,18 @@ def get_default(data, key):
     return data.get(key, os.environ.get(key, None))
 
 
+@powerup('create_es')
 def handler(event, context):
     # get data
-    item_id = get_default(event, 'id')
+    dest_env = get_default(event, 'dest_env')
     dry_run = get_default(event, 'dry_run')
-    logger.info("Attempting to create rds with event as %s" % (event))
+
+    if not dry_run:
+        bs.add_es(dest_env)
 
     retval = {"type": "create_es",
-              "id": item_id,
+              "id": dest_env,
               "dry_run": dry_run
               }
+
     return retval

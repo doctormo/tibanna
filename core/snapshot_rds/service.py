@@ -14,7 +14,7 @@ def get_default(data, key):
     return data.get(key, os.environ.get(key, None))
 
 
-@powerup
+@powerup('snapshot_rds')
 def handler(event, context):
     # get data
     source = get_default(event, 'source_env')
@@ -26,6 +26,9 @@ def handler(event, context):
         dbid = "dry_run"
     else:
         res = bs.create_db_snapshot(source, dest)
+        if res == "Deleting":
+                raise bs.WaitingForBoto3("Waiting for RDS to delete")
+
         dbid = res['DBSnapshot']['DBSnapshotIdentifier']
     logger.info(res)
 

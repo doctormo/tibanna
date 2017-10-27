@@ -2,6 +2,7 @@
 import os
 import logging
 import core.beanstalk_utils as bs
+from core.beanstalk_utils import WaitingForBoto3
 from core.utils import powerup
 
 
@@ -10,15 +11,11 @@ logger = logging.getLogger('logger')
 logger.setLevel(logging.INFO)
 
 
-class WaitingForBoto3(Exception):
-    pass
-
-
 def get_default(data, key):
     return data.get(key, os.environ.get(key, None))
 
 
-@powerup
+@powerup('waitfor')
 def handler(event, context):
     # get data
     item_id = get_default(event, 'id')
@@ -26,10 +23,9 @@ def handler(event, context):
     dry_run = get_default(event, 'dry_run')
 
     checkers = {'snapshot': bs.is_snapshot_ready,
-                'rds': bs.is_db_ready,
-                'rds_delete': bs.is_db_delete_done,
-                'create_es': bs.is_es_ready}
-    # TODO: rds_delete
+                'create_rds': bs.is_db_ready,
+                'create_es': bs.is_es_ready,
+                'create_bs': bs.is_beanstalk_ready}
 
     if dry_run:
         logger.warn("Dry Run - would have called %s : %s with %s" %

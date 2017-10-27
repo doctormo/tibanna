@@ -369,14 +369,23 @@ def is_prod():
     return current_env().lower() == 'prod'
 
 
-def powerup(function):
-    import logging
-    logging.basicConfig()
-    logger = logging.getLogger('logger')
+def powerup(lambda_name):
+    '''
+    friendly wrapper for your lambda functions... allows for fun with
+    input json amongst other stuff
+    '''
+    def decorator(function):
+        import logging
+        logging.basicConfig()
+        logger = logging.getLogger('logger')
 
-    def wrapper(event, context):
-        logger.info(context)
-        logger.info(event)
-        return function(event, context)
+        def wrapper(event, context):
+            logger.info(context)
+            logger.info(event)
+            if event.get('skip', '') != lambda_name:
+                return function(event, context)
+            else:
+                logger.info('skiping %s since skip was set in input_json' % lambda_name)
 
-    return wrapper
+        return wrapper
+    return decorator

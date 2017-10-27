@@ -2,7 +2,7 @@ region: us-east-1
 
 function_name: create_rds 
 handler: service.handler
-role: service-role/lambda-role 
+role: rdsadmin-role 
 description: creates and rds from a snapshot, optionally deleting the original 
 
 # if access key and secret are left blank, boto will use the credentials

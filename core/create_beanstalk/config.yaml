@@ -1,9 +1,9 @@
 region: us-east-1
 
-function_name: create_es 
+function_name: create_beanstalk 
 handler: service.handler
 role: sysadmin 
-description: creates an elasticsearch instance on aws, optionally deleting the original 
+description: creates a beanstalk instance on aws, optionally deleting the original 
 
 # if access key and secret are left blank, boto will use the credentials
 # defined in the [default] section of ~/.aws/credentials.
