@@ -3,18 +3,21 @@ from core.start_run_awsf.service import (
     handler,
     get_format_extension_map,
     handle_processed_files,
-    update_config
 )
 from ..conftest import valid_env
 from core.utils import Tibanna
-from core import ff_utils
+from core.ec2_utils import update_config
+from dcicutils import ff_utils
+from mock import patch
 
 
 @valid_env
 @pytest.mark.webtest
 def test_start_awsem_handler(run_awsf_event_data):
     # data = service.handler(run_awsf_event_data, '')
-    handler(run_awsf_event_data, '')
+    with patch('dcicutils.ff_utils.get_metadata'):
+        with patch('dcicutils.ff_utils.post_to_metadata'):
+            handler(run_awsf_event_data, '')
 
 
 @valid_env
@@ -38,9 +41,10 @@ def test_get_format_extension_map(run_awsf_event_data):
                       ff_keys=run_awsf_event_data.get('ff_keys'),
                       settings=tibanna_settings)
 
-    fe_map = get_format_extension_map(tibanna)
-    assert(fe_map)
-    assert 'pairs' in fe_map.keys()
+    with patch('dcicutils.ff_utils.get_metadata') as meta:
+        fe_map = get_format_extension_map(tibanna)
+        assert(fe_map)
+        meta.assert_called_once()
 
 
 @valid_env

@@ -2,7 +2,7 @@
 import logging
 # import json
 import boto3
-from core import ff_utils
+from dcicutils import ff_utils
 from core.utils import Tibanna, ensure_list
 
 LOG = logging.getLogger(__name__)

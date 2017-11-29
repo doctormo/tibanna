@@ -9,9 +9,10 @@ except:
     pass  # don't know why this fails with tox
 
 requires = [
-    'boto3==1.4.2',
-    'botocore==1.4.52',
-    'invoke'
+    'boto3',
+    'botocore',
+    'invoke',
+    'dcicutils',
 ]
 
 tests_require = [
@@ -19,6 +20,7 @@ tests_require = [
     'pytest-mock',
     'pytest-cov',
 ]
+
 
 setup(
     name='core',
@@ -37,6 +39,9 @@ setup(
             'Programming Language :: Python :: 2.7',
             ],
     install_requires=requires,
+    dependency_links=[
+        "https://github.com/4dn-dcic/utils/tarball/master#egg=dcicutils"
+    ],
     include_package_data=True,
     tests_require=tests_require,
     extras_require={
