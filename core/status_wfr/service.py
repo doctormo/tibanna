@@ -10,8 +10,11 @@ def handler(event, context):
     run_details = client.describe_execution(
             executionArn=arn
         )
-    run_details['startDate'] = str(run_details['startDate'])
-    run_details['stopDate'] = str(run_details['stopDate'])
+
+    if run_details.get('startDate'):
+        run_details['startDate'] = str(run_details['startDate'])
+    if run_details.get('stopDate'):
+        run_details['stopDate'] = str(run_details['stopDate'])
     return run_details
 
 if __name__ == "__main__":
