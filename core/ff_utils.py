@@ -276,12 +276,13 @@ def patch_metadata(patch_item, obj_id='', key='', connection=None, url_addon=Non
 
 
 def get_metadata(obj_id, key='', connection=None, frame="object"):
+    url_addon = '?datastore=database'
     # default to always get from database
     connection = fdn_connection(key, connection)
     sleep = [2, 4, 12]
     for wait in sleep:
         try:
-            res = fdnDCIC.get_FDN(obj_id, connection, frame=frame, url_addon='&datastore=database')
+            res = fdnDCIC.get_FDN(obj_id + url_addon, connection, frame=frame)
         except:
             time.sleep(wait)
             continue
@@ -298,10 +299,9 @@ def get_metadata(obj_id, key='', connection=None, frame="object"):
 
 def post_to_metadata(post_item, schema_name, key='', connection=None):
     connection = fdn_connection(key, connection)
+    url_addon = '?datastore=database'
     if schema_name == 'file_processed':
-        url_addon = '?force_md5'
-    else:
-        url_addon = None
+        url_addon =  url_addon + '&force_md5'
     try:
         response = fdnDCIC.new_FDN(connection, schema_name, post_item, url_addon=url_addon)
         if (response.get('status') == 'error' and response.get('detail') == 'UUID conflict'):
