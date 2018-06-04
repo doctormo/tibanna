@@ -1,4 +1,4 @@
-from core import ff_utils
+from dcicutils import ff_utils
 from core.utils import run_workflow
 from datetime import datetime
 import time
@@ -21,7 +21,7 @@ re_nz = {"human": {'MboI': '/files-reference/4DNFI823L812/',
          }
 
 
-def extract_file_info(obj_id, arg_name, tibanna, ff):
+def extract_file_info(obj_id, arg_name, tibanna, env):
     raw_bucket = tibanna.s3.raw_file_bucket
     out_bucket = tibanna.s3.outfile_bucket
     """Creates the formatted dictionary for files.
@@ -35,7 +35,7 @@ def extract_file_info(obj_id, arg_name, tibanna, ff):
         uuid = []
         buckets = []
         for obj in obj_id:
-            metadata = ff_utils.get_metadata(obj, connection=ff)
+            metadata = ff_utils.get_metadata(obj, ff_env=env)
             object_key.append(metadata['display_title'])
             uuid.append(metadata['uuid'])
             # get the bucket
@@ -55,7 +55,7 @@ def extract_file_info(obj_id, arg_name, tibanna, ff):
         template['bucket_name'] = buckets[0]
     # if obj_id is a string
     else:
-        metadata = ff_utils.get_metadata(obj_id, connection=ff)
+        metadata = ff_utils.get_metadata(obj_id, ff_env=env)
         template['object_key'] = metadata['display_title']
         template['uuid'] = metadata['uuid']
         # get the bucket
@@ -67,7 +67,7 @@ def extract_file_info(obj_id, arg_name, tibanna, ff):
     return template
 
 
-def run_json(input_files, env, parameters, wf_uuid, wf_name, run_name, tibanna):
+def run_json(input_files, env, parameters, wf_uuid, wf_name, run_name, tibanna, tag):
     out_bucket = tibanna.s3.outfile_bucket
     """Creates the trigger json that is used by tibanna.
     """
@@ -93,12 +93,12 @@ def run_json(input_files, env, parameters, wf_uuid, wf_name, run_name, tibanna):
                   "_tibanna": {"env": env,
                                "run_type": wf_name,
                                "run_id": run_name},
-                  "tag": '0.2.5'
+                  "tag": tag
                   }
     return input_json
 
 
-def find_pairs(my_rep_set, exclude_miseq, ff, tibanna):
+def find_pairs(my_rep_set, exclude_miseq, env, tibanna, lookfor='pairs'):
     """Find fastq files from experiment set, exclude miseq.
     """
     report = {}
@@ -107,20 +107,23 @@ def find_pairs(my_rep_set, exclude_miseq, ff, tibanna):
     organisms = []
     total_f_size = 0
     for exp in rep_resp:
-        exp_resp = ff_utils.get_metadata(exp, connection=ff)
-        report[exp_resp['accession']] = []
+
+        exp_resp = exp
+
+        report[exp['accession']] = []
         if not organisms:
-            biosample = ff_utils.get_metadata(exp_resp['biosample'], connection=ff, frame='embedded')
+            biosample = exp['biosample']
             organisms = list(set([bs['individual']['organism']['display_title'] for bs in biosample['biosource']]))
             if len(organisms) != 1:
                 print('multiple organisms in set', my_rep_set['accession'])
                 break
-        exp_files = exp_resp['files']
-        enzyme = exp_resp.get('digestion_enzyme')
+        exp_files = exp['files']
+        enzyme = exp.get('digestion_enzyme')
         if enzyme:
-            enzymes.append(enzyme)
+            enzymes.append(enzyme['name'])
+
         for fastq_file in exp_files:
-            file_resp = ff_utils.get_metadata(fastq_file, connection=ff)
+            file_resp = ff_utils.get_metadata(fastq_file['uuid'], ff_env=env)
             if not file_resp.get('file_size'):
                 print("WARNING!", file_resp['accession'], 'does not have filesize')
             else:
@@ -149,16 +152,25 @@ def find_pairs(my_rep_set, exclude_miseq, ff, tibanna):
                 continue
             # check that file has a pair
             f1 = file_resp['@id']
-            f2 = ''
-            relations = file_resp.get('related_files')
-            for relation in relations:
-                if relation['relationship_type'] == 'paired with':
-                    f2 = relation['file']
-            if not f2:
-                print(f1, 'does not have a pair')
-                continue
-            report[exp_resp['accession']].append((f1, f2))
 
+            # for experiments with unpaired fastq files
+            if lookfor == 'single':
+                report[exp_resp['accession']].append(f1)
+            # for experiments with paired files
+            else:
+                f2 = ''
+                relations = file_resp.get('related_files')
+
+                if not relations:
+                    print(f1, 'does not have a pair')
+                    continue
+                for relation in relations:
+                    if relation['relationship_type'] == 'paired with':
+                        f2 = relation['file']['@id']
+                if not f2:
+                    print(f1, 'does not have a pair')
+                    continue
+                report[exp_resp['accession']].append((f1, f2))
     # get the organism
     if len(list(set(organisms))) == 1:
         organism = organisms[0]
@@ -167,7 +179,7 @@ def find_pairs(my_rep_set, exclude_miseq, ff, tibanna):
 
     # get the enzyme
     if len(list(set(enzymes))) == 1:
-        enz = enzymes[0].split('/')[2]
+        enz = enzymes[0]
     else:
         enz = None
 
@@ -178,8 +190,8 @@ def find_pairs(my_rep_set, exclude_miseq, ff, tibanna):
     return report, organism, enz, bwa, chrsize, enz_file, int(total_f_size/(1024*1024*1024))
 
 
-def get_wfr_out(file_id, wfr_name, file_format, ff, run=100):
-    emb_file = ff_utils.get_metadata(file_id, connection=ff, frame='embedded')
+def get_wfr_out(file_id, wfr_name, file_format, env, run=100):
+    emb_file = ff_utils.get_metadata(file_id, ff_env=env)
     workflows = emb_file.get('workflow_run_inputs')
     wfr = {}
     run_status = 'did not run'
@@ -189,7 +201,7 @@ def get_wfr_out(file_id, wfr_name, file_format, ff, run=100):
         for a_wfr in workflows:
             wfr_time = datetime.strptime(a_wfr['display_title'].split(' run ')[1], '%Y-%m-%d %H:%M:%S.%f')
             a_wfr['run_hours'] = (datetime.utcnow()-wfr_time).total_seconds()/3600
-            a_wfr['run_type'] = a_wfr['display_title'].split(' run ')[0]
+            a_wfr['run_type'] = a_wfr['display_title'].split(' run ')[0].strip()
     # sort wfrs
         workflows = sorted(workflows, key=lambda k: (k['run_type'], -k['run_hours']))
     try:
@@ -197,16 +209,16 @@ def get_wfr_out(file_id, wfr_name, file_format, ff, run=100):
     except:
         return "no workflow in file"
 
-    wfr = ff_utils.get_metadata(last_wfr['uuid'], connection=ff)
+    wfr = ff_utils.get_metadata(last_wfr['uuid'], ff_env=env)
     run_duration = last_wfr['run_hours']
     run_status = wfr['run_status']
 
     if run_status == 'complete':
         outputs = wfr.get('output_files')
         if file_format:
-            file_id = [i['value'] for i in outputs if i['format'] == file_format][0]
-            if file_id:
-                return file_id
+            pr_file_id = [i['value'] for i in outputs if i.get('format') == file_format][0]
+            if pr_file_id:
+                return pr_file_id['@id']
             else:
                 return "no file found"
         # some runs, like qc, don't have a real file output
@@ -219,35 +231,35 @@ def get_wfr_out(file_id, wfr_name, file_format, ff, run=100):
         return "no completed run"
 
 
-def add_processed_files(item_id, list_pc, ff):
+def add_processed_files(item_id, list_pc, env):
     # patch the exp or set
     patch_data = {'processed_files': list_pc}
-    ff_utils.patch_metadata(patch_data, obj_id=item_id, connection=ff)
+    ff_utils.patch_metadata(patch_data, obj_id=item_id, ff_env=env)
     return
 
 
-def release_files(set_id, list_items, ff):
-    item_status = ff_utils.get_metadata(set_id, connection=ff)['status']
+def release_files(set_id, list_items, env):
+    item_status = ff_utils.get_metadata(set_id, ff_env=env)['status']
     # bring files to same status as experiments and sets
     if item_status in ['released', 'released to project']:
         for a_file in list_items:
-            it_resp = ff_utils.get_metadata(a_file, connection=ff)
+            it_resp = ff_utils.get_metadata(a_file, ff_env=env)
             workflow = it_resp.get('workflow_run_outputs')
             # release the wfr that produced the file
             if workflow:
-                ff_utils.patch_metadata({"status": item_status}, obj_id=workflow[0], connection=ff)
-            ff_utils.patch_metadata({"status": item_status}, obj_id=a_file, connection=ff)
+                ff_utils.patch_metadata({"status": item_status}, obj_id=workflow[0]['uuid'], ff_env=env)
+            ff_utils.patch_metadata({"status": item_status}, obj_id=a_file, ff_env=env)
 
 
-def run_missing_wfr(wf_info, input_files, run_name, ff, env, tibanna):
+def run_missing_wfr(wf_info, input_files, run_name, env, tibanna, tag='0.2.5'):
     all_inputs = []
     for arg, files in input_files.iteritems():
-        inp = extract_file_info(files, arg, tibanna, ff)
+        inp = extract_file_info(files, arg, tibanna, env)
         all_inputs.append(inp)
     wf_name = wf_info['wf_name']
     wf_uuid = wf_info['wf_uuid']
     parameters = wf_info['parameters']
-    input_json = run_json(all_inputs, env, parameters, wf_uuid, wf_name, run_name, tibanna)
+    input_json = run_json(all_inputs, env, parameters, wf_uuid, wf_name, run_name, tibanna, tag)
     # print input_json
     run_workflow(input_json)
     time.sleep(30)
