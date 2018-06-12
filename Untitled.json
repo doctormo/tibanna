@@ -1,0 +1,51 @@
+{
+  "tag": "0.2.5",
+  "app_name": "repliseq-parta",
+  "parameters": {
+    "memperthread": "2G",
+    "nthreads": 4
+  },
+  "_tibanna": {
+    "run_type": "repliseq-parta",
+    "run_id": "4DNFIYCISJNQ",
+    "url": "https://console.aws.amazon.com/states/home?region=us-east-1#/executions/details/arn:aws:states:us-east-1:643366669028:execution:tibanna_pony:repliseq-parta_4DNFIYCISJNQ",
+    "env": "data",
+    "run_name": "repliseq-parta_4DNFIYCISJNQ"
+  },
+  "config": {
+    "ebs_type": "io1",
+    "key_name": "4dn-encode",
+    "ebs_iops": 500,
+    "shutdown_min": 30,
+    "s3_access_arn": "arn:aws:iam::643366669028:instance-profile/S3_access",
+    "launch_instance": true,
+    "password": "dragonfly",
+    "log_bucket": "tibanna-output",
+    "ami_id": "ami-cfb14bb5",
+    "json_bucket": "4dn-aws-pipeline-run-json",
+    "copy_to_s3": true,
+    "script_url": "https://raw.githubusercontent.com/4dn-dcic/tibanna/master/awsf/"
+  },
+  "output_bucket": "elasticbeanstalk-fourfront-webprod-wfoutput",
+  "workflow_uuid": "146da22a-502d-4500-bf57-a7cf0b4b2364",
+  "input_files": [
+    {
+      "uuid": "00828749-b664-42c6-9a3d-961b2c51b5ac",
+      "bucket_name": "elasticbeanstalk-fourfront-webprod-files",
+      "workflow_argument_name": "fastq",
+      "object_key": "4DNFIYCISJNQ.fastq.gz"
+    },
+    {
+      "uuid": "4a6d10ee-2edb-4402-a98f-0edb1d58f5e9",
+      "bucket_name": "elasticbeanstalk-fourfront-webprod-files",
+      "workflow_argument_name": "chromsizes",
+      "object_key": "4DNFI823LSII.chrom.sizes"
+    },
+    {
+      "uuid": "1f53df95-4cf3-41cc-971d-81bb16c486dd",
+      "bucket_name": "elasticbeanstalk-fourfront-webprod-files",
+      "workflow_argument_name": "bwa_index",
+      "object_key": "4DNFIZQZ39L9.bwaIndex.tgz"
+    }
+  ]
+}
