@@ -82,12 +82,10 @@ def run_json(input_files, env, parameters, wf_uuid, wf_name, run_name, tibanna, 
                         "ebs_iops": 500,
                         "shutdown_min": 30,
                         "s3_access_arn": "arn:aws:iam::643366669028:instance-profile/S3_access",
-                        "ami_id": "ami-cfb14bb5",
                         "copy_to_s3": True,
                         "launch_instance": True,
                         "password": "dragonfly",
                         "log_bucket": "tibanna-output",
-                        "script_url": "https://raw.githubusercontent.com/4dn-dcic/tibanna/master/awsf/",
                         "key_name": "4dn-encode"
                     },
                   "_tibanna": {"env": env,
@@ -103,6 +101,7 @@ def find_pairs(my_rep_set, exclude_miseq, env, tibanna, lookfor='pairs'):
     """
     report = {}
     rep_resp = my_rep_set['experiments_in_set']
+    lab = [my_rep_set['lab']['@id']]
     enzymes = []
     organisms = []
     total_f_size = 0
@@ -120,7 +119,7 @@ def find_pairs(my_rep_set, exclude_miseq, env, tibanna, lookfor='pairs'):
         exp_files = exp['files']
         enzyme = exp.get('digestion_enzyme')
         if enzyme:
-            enzymes.append(enzyme['name'])
+            enzymes.append(enzyme['display_title'])
 
         for fastq_file in exp_files:
             file_resp = ff_utils.get_metadata(fastq_file['uuid'], ff_env=env)
@@ -187,7 +186,7 @@ def find_pairs(my_rep_set, exclude_miseq, env, tibanna, lookfor='pairs'):
     chrsize = chr_size.get(organism)
     enz_file = re_nz.get(organism).get(enz)
 
-    return report, organism, enz, bwa, chrsize, enz_file, int(total_f_size/(1024*1024*1024))
+    return report, organism, enz, bwa, chrsize, enz_file, int(total_f_size/(1024*1024*1024)), lab
 
 
 def get_wfr_out(file_id, wfr_name, file_format, env, run=100):
@@ -238,6 +237,27 @@ def add_processed_files(item_id, list_pc, env):
     return
 
 
+def add_preliminary_processed_files(item_id, list_pc, env):
+    pc_set_title = "HiC Processing Pipeline - Preliminary Files"
+    patch_data = ff_utils.get_metadata(item_id, ff_env=env).get('other_processed_files')
+    if patch_data:
+        # does the same title exist
+        if pc_set_title in [i['title'] for i in patch_data]:
+            print(item_id, 'already has preliminary HiC results')
+            return
+        else:
+            pass
+    else:
+        patch_data = []
+
+    new_data = {'title': pc_set_title,
+                'type': 'preliminary',
+                'files': list_pc}
+    patch_data.append(new_data)
+    patch = {'other_processed_files': patch_data}
+    ff_utils.patch_metadata(patch, obj_id=item_id, ff_env=env)
+
+
 def release_files(set_id, list_items, env):
     item_status = ff_utils.get_metadata(set_id, ff_env=env)['status']
     # bring files to same status as experiments and sets
@@ -265,22 +285,82 @@ def run_missing_wfr(wf_info, input_files, run_name, env, tibanna, tag='0.2.5'):
     time.sleep(30)
 
 
-def extract_nz_file(acc, ff):
+# def extract_nz_info(acc, env):
+#     mapping = {"HindIII": "6", "DpnII": "4", "MboI": "4", "NcoI": "6"}
+#     chr_size = {"human": "4DNFI823LSII",
+#                 #"mouse": "4DNFI3UBJ3HZ"
+#                 }
+#     exp_resp = ff_utils.get_metadata(acc, ff_env=env)
+#     exp_type = exp_resp.get('experiment_type')
+#     # get enzyme
+#     nz = None
+#     nz2 = exp_resp.get('digestion_enzyme')
+#     if nz2:
+#         nz = nz2['display_title']
+#
+#     # get organism
+#     biosample = exp_resp['biosample']
+#     organisms = list(set([bs['individual']['organism']['display_title'] for bs in biosample['biosource']]))
+#     org = None
+#     if len(organisms) == 1:
+#         org = organisms[0]
+#
+#     return exp_type, nz, org
+
+
+def extract_nz_file(acc, env):
     mapping = {"HindIII": "6", "DpnII": "4", "MboI": "4", "NcoI": "6"}
     chr_size = {"human": "4DNFI823LSII",
-                "mouse": "4DNFI3UBJ3HZ"}
-    exp_resp = ff_utils.get_metadata(acc, connection=ff)
+                # "mouse": "4DNFI3UBJ3HZ"
+                }
+    exp_resp = ff_utils.get_metadata(acc, ff_env=env)
+    exp_type = exp_resp.get('experiment_type')
     # get enzyme
     nz = exp_resp.get('digestion_enzyme')
     if nz:
-        nz_num = mapping.get(nz.split('/')[2])
+        nz_num = mapping.get(nz['display_title'])
+    # Soo suggested assigning 6 for Chiapet
+    elif exp_type == 'CHIA-pet':
+        nz_num = '6'
     else:
         return (None, None)
     # get organism
-    biosample = ff_utils.get_metadata(exp_resp['biosample'], connection=ff, frame='embedded')
+    biosample = exp_resp['biosample']
     organisms = list(set([bs['individual']['organism']['display_title'] for bs in biosample['biosource']]))
+    chrsize = ''
     if len(organisms) == 1:
         chrsize = chr_size.get(organisms[0])
-    else:
+    # if organism is not available return empty
+    if not chrsize:
         return (None, None)
+    # return result if both exist
     return nz_num, chrsize
+
+
+# def extract_no_nz_file(acc, env):
+#     mapping = {"HindIII": "6", "DpnII": "4", "MboI": "4", "NcoI": "6"}
+#     chr_size = {"human": "4DNFI823LSII",
+#                 #"mouse": "4DNFI3UBJ3HZ"
+#                 }
+#     chrsize = ""
+#     nz_num = ""
+#     exp_resp = ff_utils.get_metadata(acc, ff_env=env)
+#     exp_type = exp_resp.get('experiment_type')
+#
+#     # get organism
+#     biosample = exp_resp['biosample']
+#     organisms = list(set([bs['individual']['organism']['display_title'] for bs in biosample['biosource']]))
+#
+#     if len(organisms) == 1:
+#         chrsize = chr_size.get(organisms[0])
+#     if not chrsize:
+#         return ('skip', 'skip')
+#
+#     # get enzyme
+#     nz = exp_resp.get('digestion_enzyme')
+#     if nz:
+#         nz_num = mapping.get(nz['display_title'])
+#     if nz_num:
+#         return ('skip', 'skip')
+#     else:
+#         return (exp_type, chrsize)
