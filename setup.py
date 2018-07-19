@@ -14,7 +14,7 @@ requires = [
     'botocore==1.10.42',
     'invoke==0.18.1',
     'flake8==2.4.1',
-    'dcicutils==0.3.4',
+    'dcicutils==0.3.5',
     'urllib3',
     'packaging@https://github.com/4dn-dcic/python-lambda.git#egg=python_lambda',
     'packaging@https://github.com/SooLee/Benchmark.git#egg=Benchmark'
