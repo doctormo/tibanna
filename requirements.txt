@@ -1,7 +1,7 @@
-botocore==1.8.0
-boto3==1.4.8
+boto3==1.7.42
+botocore==1.10.42
 -e git+https://github.com/SooLee/Benchmark.git#egg=Benchmark
-dcicutils==0.3.5
+dcicutils==0.3.6
 # Build tasks
 invoke==0.18.1
 # Syntax checking

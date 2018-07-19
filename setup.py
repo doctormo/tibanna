@@ -9,9 +9,9 @@ except:
     pass  # don't know why this fails with tox
 
 requires = [
-    'botocore==1.8.0',
-    'boto3==1.4.8',
-    'dcicutils==0.3.5',
+    'boto3==1.7.42',
+    'botocore==1.10.42',
+    'dcicutils==0.3.6',
     'invoke==0.18.1',
     'flake8==2.4.1',
     'urllib3'
