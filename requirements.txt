@@ -1,5 +1,5 @@
-boto3==1.7.42
 botocore==1.10.42
+boto3==1.7.42
 -e git+https://github.com/SooLee/Benchmark.git#egg=Benchmark
 dcicutils==0.3.6
 # Build tasks
