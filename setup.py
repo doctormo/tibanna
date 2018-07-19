@@ -10,8 +10,8 @@ except:
 
 requires = [
     'dcicutils==0.3.5',
-    'boto3==1.4.2',
-    'botocore==1.4.52',
+    'boto3==1.7.4',
+    'botocore',
     'invoke==0.18.1',
     'flake8==2.4.1',
     'urllib3'

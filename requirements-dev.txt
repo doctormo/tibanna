@@ -1,0 +1,1 @@
+-e git+https://github.com/4dn-dcic/python-lambda.git#egg=python_lambda

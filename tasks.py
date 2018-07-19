@@ -26,7 +26,6 @@ from core.launch_utils import kill_all as _kill_all
 from core.iam_utils import create_tibanna_iam
 from core.iam_utils import get_bucket_role_name, get_lambda_role_name
 from contextlib import contextmanager
-import aws_lambda
 from time import sleep
 import requests
 import random
@@ -285,6 +284,8 @@ def deploy_core(ctx, name, version=None, no_tests=False, suffix=None, usergroup=
 
 @task
 def deploy_lambda_package(ctx, name, suffix=None, usergroup=None):
+    # local import because requirements are onerous
+    import aws_lambda
     # create the temporary local dev lambda directories
     if usergroup:
         if suffix:
