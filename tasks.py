@@ -25,6 +25,7 @@ from core.launch_utils import rerun_many as _rerun_many
 from core.launch_utils import kill_all as _kill_all
 from core.iam_utils import create_tibanna_iam
 from core.iam_utils import get_bucket_role_name, get_lambda_role_name
+import aws_lambda
 from contextlib import contextmanager
 from time import sleep
 import requests
@@ -284,8 +285,6 @@ def deploy_core(ctx, name, version=None, no_tests=False, suffix=None, usergroup=
 
 @task
 def deploy_lambda_package(ctx, name, suffix=None, usergroup=None):
-    # local import because requirements are onerous
-    import aws_lambda
     # create the temporary local dev lambda directories
     if usergroup:
         if suffix:
@@ -307,7 +306,7 @@ def deploy_lambda_package(ctx, name, suffix=None, usergroup=None):
         new_name = name
         new_src = '../' + new_name
     with chdir(new_src):
-        aws_lambda.deploy(os.getcwd(), local_package='../..', requirements='../../requirements.txt')
+        aws_lambda.deploy(os.getcwd(), local_package='../..', requirements='../../requirements-lambda.txt')
     # add environment variables
     lambda_update_config = {'FunctionName': new_name}
     envs = env_list(name)

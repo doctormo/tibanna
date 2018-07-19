@@ -9,18 +9,13 @@ except:
     pass  # don't know why this fails with tox
 
 requires = [
-    'botocore==1.10.42',
-    'boto3==1.7.42',
-    'dcicutils==0.3.6',
-    'invoke==0.18.1',
-    'flake8==2.4.1',
-    'urllib3'
+    'dcicutils==0.0.361'
 ]
 
 tests_require = [
-    'pytest>=3.0.1',
-    'pytest-mock',
-    'pytest-cov',
+    'pytest==3.0.5',
+    'pytest-cov==2.3.1',
+    'pytest-mock'
 ]
 
 setup(
